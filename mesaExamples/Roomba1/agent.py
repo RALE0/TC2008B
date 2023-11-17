@@ -1,5 +1,8 @@
+# David Santiago Vieyra García A01656030
+
 from mesa import Agent
-import heapq
+import numpy as np
+from scipy.spatial import distance
 
 class RoombaAgent(Agent):
     def __init__(self, unique_id, model, charging_station_pos):
@@ -8,43 +11,119 @@ class RoombaAgent(Agent):
         self.direction = 4 # 4 is the center of the grid 
         self.steps_taken = 0 # Number of steps taken by the agent\
         self.visited_cells = set()  # Store visited positions
+        self.nonVisited_cells = set()
         self.isCharging = False
         self.battery = 100
         self.state = "Alive"
         self.path = None
     
-    def move(self):
-        """ 
-        Determines if the agent can move in the direction that was chosen
-        """
-        # Get the possible steps      
+
+    def move_towards_charging_station(self):
         possible_steps = self.model.grid.get_neighborhood(
             self.pos,
-            moore=True, # Boolean for whether to use Moore neighborhood (including diagonals) or Von Neumann (only up/down/left/right).
-            include_center=True) 
-        
-        # Filter out cells with obstacles or non-empty cells (except TrashAgent)
-        non_obstacle_steps = [p for p in possible_steps if self.model.grid.is_cell_empty(p) or any(isinstance(agent, TrashAgent) for agent in self.model.grid.get_cell_list_contents(p))]
-        visited_steps = [p for p in non_obstacle_steps if any(isinstance(agent, VisitedCell) for agent in self.model.grid.get_cell_list_contents(p))]
-        
-        # Choose from non-obstacle and non-empty cells
-        if non_obstacle_steps:
-            next_move = self.random.choice(non_obstacle_steps)
-            cell_contents = self.model.grid.get_cell_list_contents(next_move)
+            moore=False,
+            include_center=True
+        )
 
-            # Remove TrashAgent if present
-            trash_agents = [agent for agent in cell_contents if isinstance(agent, TrashAgent)]
-            if trash_agents:
-                self.model.grid.remove_agent(trash_agents[0])
+        # Calculate distances to the charging station from possible steps
+        distances = [distance.euclidean(step, self.charging_station_pos) for step in possible_steps]
+
+        # Find the step that minimizes the distance to the charging station
+        min_distance_index = np.argmin(distances)
+        best_step = possible_steps[min_distance_index]
+
+        # Move RoombaAgent
+        self.model.grid.move_agent(self, best_step)
+
+        # Update visited cells and battery
+        self.visited_cells.add(self.pos)
+        self.steps_taken += 1
+        self.battery -= 1
+
+    def move(self):
+        # Check if the battery is low and Roomba is not currently charging
+        if self.battery <= 20 and not self.isCharging:
+            # Move towards the charging station position
+            self.move_towards_charging_station()
+            # If Roomba reaches the charging station, start charging
+            if self.pos == self.charging_station_pos:
+                self.isCharging = True
+                self.battery = 100  # Fully recharge the battery when at the charging station
+        else:
+            # Normal movement logic
+            possible_steps = self.model.grid.get_neighborhood(
+                self.pos,
+                moore=False,
+                include_center=True
+            )
+
+            # Filter out cells with obstacles
+            non_obstacle_steps = [p for p in possible_steps if not any(isinstance(agent, ObstacleAgent) for agent in self.model.grid.get_cell_list_contents(p))]
+
+            # Filter visited and unvisited cells
+            visited_unvisited = [p for p in non_obstacle_steps if p not in self.visited_cells]
+
+            if visited_unvisited:
+                next_move = self.random.choice(visited_unvisited)
+            else:
+                # If all surrounding cells are visited, randomly choose from available cells (including visited)
+                if non_obstacle_steps:
+                    next_move = self.random.choice(non_obstacle_steps)
+                    cell_contents = self.model.grid.get_cell_list_contents(next_move)
+                    # Remove TrashAgent if present
+                    trash_agents = [agent for agent in cell_contents if isinstance(agent, TrashAgent)]
+                    if trash_agents:
+                        self.model.grid.remove_agent(trash_agents[0])
+                        self.battery -= 1
+                else:
+                    # If no available cells (including visited cells), stay in the current cell
+                    next_move = self.pos
 
             # Move RoombaAgent
             self.model.grid.move_agent(self, next_move)
 
             # Update visited cells and battery
-            # self.visited_cells.add(self.pos)
-            self.model.grid.place_agent(VisitedCell(self.unique_id, self.model), self.pos)
+            self.visited_cells.add(self.pos)
             self.steps_taken += 1
-            self.battery -= 1
+            if not self.isCharging:
+                self.battery -= 1  # Consume battery only if not charging
+    
+        
+    # def move(self):
+    #     """ 
+    #     Determines if the agent can move in the direction that was chosen
+    #     """
+        
+    #     # Get the possible steps      
+    #     possible_steps = self.model.grid.get_neighborhood(
+    #         self.pos,
+    #         moore=False, # Boolean for whether to use Moore neighborhood (including diagonals) or Von Neumann (only up/down/left/right).
+    #         include_center=True) 
+        
+    #     # Filter out cells with obstacles or non-empty cells (except TrashAgent)
+    #     non_obstacle_steps = [p for p in possible_steps if self.model.grid.is_cell_empty(p) or any(isinstance(agent, TrashAgent) for agent in self.model.grid.get_cell_list_contents(p))]
+    #     visited_steps = [p for p in non_obstacle_steps if any(isinstance(agent, VisitedCell) for agent in self.model.grid.get_cell_list_contents(p))]
+        
+    #     # Choose from non-obstacle and non-empty cells
+    #     if non_obstacle_steps:
+    #         next_move = self.random.choice(non_obstacle_steps)
+    #         cell_contents = self.model.grid.get_cell_list_contents(next_move)
+
+    #         # Remove TrashAgent if present
+    #         trash_agents = [agent for agent in cell_contents if isinstance(agent, TrashAgent)]
+    #         if trash_agents:
+    #             self.model.grid.remove_agent(trash_agents[0])
+    #             self.battery -= 1
+
+    #         # Move RoombaAgent
+    #         self.model.grid.move_agent(self, next_move)
+
+    #         # Update visited cells and battery
+    #         # self.visited_cells.add(self.pos)
+    #         self.model.grid.place_agent(VisitedCell(self.unique_id, self.model), self.pos)
+    #         self.steps_taken += 1
+    #         self.battery -= 1
+    #         print(f"RoombaAgent battery: {self.battery}\n")
         
         
         # Checks which grid cells are empty
@@ -56,11 +135,11 @@ class RoombaAgent(Agent):
         
         # self.battery = self.battery - 1
         
-        # if self.battery <= 0:
-        #     self.state = "Dead"
-        #     self.battery = 0
-        #     #finish simulation
-        #     self.model.running = False
+        if self.battery <= 0:
+            self.state = "Dead"
+            self.battery = 0
+            #finish simulation
+            self.model.running = False
         
         # # Now move:
         # if self.random.random() < 0.1 and self.battery > 0:
