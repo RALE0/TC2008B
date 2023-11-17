@@ -19,26 +19,29 @@ class RoombaAgent(Agent):
     
 
     def move_towards_charging_station(self):
-        possible_steps = self.model.grid.get_neighborhood(
-            self.pos,
-            moore=False,
-            include_center=True
-        )
+        x, y = self.pos
+        dx = self.charging_station_pos[0] - x
+        dy = self.charging_station_pos[1] - y
 
-        # Calculate distances to the charging station from possible steps
-        distances = [distance.euclidean(step, self.charging_station_pos) for step in possible_steps]
+        # Determine the movement direction towards the charging station
+        if abs(dx) > abs(dy):
+            new_x = x + np.sign(dx)
+            new_y = y
+        else:
+            new_x = x
+            new_y = y + np.sign(dy)
 
-        # Find the step that minimizes the distance to the charging station
-        min_distance_index = np.argmin(distances)
-        best_step = possible_steps[min_distance_index]
+        new_position = (new_x, new_y)
 
-        # Move RoombaAgent
-        self.model.grid.move_agent(self, best_step)
+        # Check if the new position is within the grid boundaries and not an obstacle
+        if self.model.grid.is_cell_empty(new_position) or new_position == self.charging_station_pos:
+            # Move RoombaAgent
+            self.model.grid.move_agent(self, new_position)
 
-        # Update visited cells and battery
-        self.visited_cells.add(self.pos)
-        self.steps_taken += 1
-        self.battery -= 1
+            # Update visited cells and battery
+            self.visited_cells.add(self.pos)
+            self.steps_taken += 1
+            self.battery -= 1
 
     def move(self):
         # Check if the battery is low and Roomba is not currently charging
@@ -48,8 +51,13 @@ class RoombaAgent(Agent):
             # If Roomba reaches the charging station, start charging
             if self.pos == self.charging_station_pos:
                 self.isCharging = True
-                self.battery = 100  # Fully recharge the battery when at the charging station
-        else:
+        elif self.isCharging and self.battery < 100:
+            # While charging, increment the battery level
+            self.battery += 5
+        elif self.isCharging and self.battery == 100:
+            # If fully charged, stop charging
+            self.isCharging = False
+        elif not self.isCharging and self.battery >= 20:
             # Normal movement logic
             possible_steps = self.model.grid.get_neighborhood(
                 self.pos,
@@ -69,8 +77,8 @@ class RoombaAgent(Agent):
                 # If all surrounding cells are visited, randomly choose from available cells (including visited)
                 if non_obstacle_steps:
                     next_move = self.random.choice(non_obstacle_steps)
-                    cell_contents = self.model.grid.get_cell_list_contents(next_move)
                     # Remove TrashAgent if present
+                    cell_contents = self.model.grid.get_cell_list_contents(next_move)
                     trash_agents = [agent for agent in cell_contents if isinstance(agent, TrashAgent)]
                     if trash_agents:
                         self.model.grid.remove_agent(trash_agents[0])
@@ -84,9 +92,9 @@ class RoombaAgent(Agent):
 
             # Update visited cells and battery
             self.visited_cells.add(self.pos)
+            self.model.grid.place_agent(VisitedCell(self.unique_id, self.model), self.pos)
             self.steps_taken += 1
-            if not self.isCharging:
-                self.battery -= 1  # Consume battery only if not charging
+            self.battery -= 1
     
         
     # def move(self):
