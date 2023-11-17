@@ -5,7 +5,7 @@ from mesa.time import SimultaneousActivation
 
 from agent import TreeCell
 
-class ForestFire(Model):
+class Triangles(Model):
     """
         Simple Forest Fire model.
 
@@ -14,7 +14,7 @@ class ForestFire(Model):
             density: What fraction of grid cells have a tree in them.
     """
 
-    def __init__(self, height=10, width=10, density=0.65):
+    def __init__(self, height=50, width=50, density=0.50):
         """
         Create a new forest fire model.
         
@@ -30,33 +30,36 @@ class ForestFire(Model):
         # The step() method computes the next state of the agent, and the advance() method sets the state to the new computed state.
         self.schedule = SimultaneousActivation(self)
         self.grid = SingleGrid(height, width, torus=False)
+        self.current_row = height - 2
 
         # A datacollector is a Mesa object for collecting data about the model.
         # We'll use it to count the number of trees in each condition each step.
         self.datacollector = DataCollector(
             {
-                "Fine": lambda m: self.count_type(m, "Fine"),
-                "On Fire": lambda m: self.count_type(m, "On Fire"),
-                "Burned Out": lambda m: self.count_type(m, "Burned Out"),
+                "Dead": lambda m: self.count_type(m, "Dead"),
+                "Alive": lambda m: self.count_type(m, "Alive"),
             }
         )
 
-        # Place a tree in each cell with Prob = density
-        # coord_iter is an iterator that returns positions as well as cell contents.
-        for contents, (x, y) in self.grid.coord_iter():
+        for contents, (x,y) in self.grid.coord_iter():
             if self.random.random() < density:
-                # Create a tree
+                # Create a tree in the specified row (y=49)
                 new_tree = TreeCell((x, y), self)
                 
-                # Set all trees in the first column on fire.
-                if x == 0:
-                    new_tree.condition = "On Fire"
-                
-                self.grid.place_agent(new_tree, (x, y))
+                # Set all trees in the first column Alive.
+                if y == 49:  # Fila superior
+                    if self.random.random() < 0.4:
+                        new_tree.condition = "Alive"
+                    else:
+                        new_tree.condition = "Dead"
+                        
+                self.grid.place_agent(new_tree, (x, y)) 
                 self.schedule.add(new_tree)
-
+                
+        
         self.running = True
         self.datacollector.collect(self)
+
 
     def step(self):
         """
@@ -66,10 +69,13 @@ class ForestFire(Model):
         # collect data
         self.datacollector.collect(self)
 
-        # Halt if no more fire
-        if self.count_type(self, "On Fire") == 0:
+        # Halt if we at the bottom
+        # if self.count_type(self, "Alive") == 0:
+        #     self.running = False
+        # Halt at the bottom
+        self.current_row -= 1
+        if self.current_row < 0: 
             self.running = False
-
 
     # staticmethod is a Python decorator that makes a method callable without an instance.
     @staticmethod

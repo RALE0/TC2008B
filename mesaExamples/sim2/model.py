@@ -5,9 +5,9 @@ from mesa.time import SimultaneousActivation
 
 from agent import TreeCell
 
-class ForestFire(Model):
+class Simulation2(Model):
     """
-        Simple Forest Fire model.
+        Simple Simulation2 model.
 
         Attributes:
             height, width: Grid size.
@@ -35,8 +35,8 @@ class ForestFire(Model):
         # We'll use it to count the number of trees in each condition each step.
         self.datacollector = DataCollector(
             {
-                "Fine": lambda m: self.count_type(m, "Fine"),
-                "On Fire": lambda m: self.count_type(m, "On Fire"),
+                "Dead": lambda m: self.count_type(m, "Dead"),
+                "Alive": lambda m: self.count_type(m, "Alive"),
                 "Burned Out": lambda m: self.count_type(m, "Burned Out"),
             }
         )
@@ -48,9 +48,9 @@ class ForestFire(Model):
                 # Create a tree
                 new_tree = TreeCell((x, y), self)
                 
-                # Set all trees in the first column on fire.
+                # Set all trees in the first column Alive.
                 if x == 0:
-                    new_tree.condition = "On Fire"
+                    new_tree.condition = "Alive"
                 
                 self.grid.place_agent(new_tree, (x, y))
                 self.schedule.add(new_tree)
@@ -67,7 +67,7 @@ class ForestFire(Model):
         self.datacollector.collect(self)
 
         # Halt if no more fire
-        if self.count_type(self, "On Fire") == 0:
+        if self.count_type(self, "Alive") == 0:
             self.running = False
 
 
