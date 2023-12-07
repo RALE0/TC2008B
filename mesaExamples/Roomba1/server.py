@@ -17,7 +17,7 @@ def agent_portrayal(agent):
     
     if (isinstance(agent, RoombaAgent)):
         portrayal["Color"] = "green"
-        portrayal["Layer"] = 1
+        portrayal["Layer"] = 2
         portrayal["r"] = 0.5
         
         # Change color of visited cells
@@ -36,7 +36,7 @@ def agent_portrayal(agent):
     
     if (isinstance(agent, ChargingStationAgent)):
         portrayal["Color"] = "blue"
-        portrayal["Layer"] = 0
+        portrayal["Layer"] = 1
         portrayal["r"] = 0.7
     
     if (isinstance(agent, VisitedCell)):
@@ -59,8 +59,13 @@ model_params = {"N": Slider("Número de agentes", 1, 1, 10, 1),
 grid = CanvasGrid(agent_portrayal, 10, 10, 500, 500)
 
 bar_chart = BarChartModule(
-    [{"Label":"Steps", "Color":"#AA0000"}], 
+    [{"Label":"Battery", "Color":"#AA0000"}], 
     scope="agent", sorting="ascending", sort_by="Steps")
+# bar_chart for plotting the battery level of the Roomba
+
+# battery_chart = BarChartModule([{"Label": "BatteryLevel",
+#                                  "Color": "Red"}],
+                                #  data_collector_name='datacollector')
 
 server = ModularServer(RandomModel, [grid, bar_chart], "Simulacion Roomba 1", model_params)
                        

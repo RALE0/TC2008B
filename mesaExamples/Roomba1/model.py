@@ -26,7 +26,7 @@ class RandomModel(Model):
 
         self.datacollector = DataCollector( 
         # agent_reporters={"Steps": lambda a: a.steps_taken if isinstance(a, RoombaAgent) else 0}
-        agent_reporters={"Steps": lambda a: a.battery if isinstance(a, RoombaAgent) else 0}
+        agent_reporters={"Battery": lambda a: a.battery if isinstance(a, RoombaAgent) else 0}
         )
         
         self.dirty_cells_percentage = dirty_cells_percent
@@ -38,27 +38,55 @@ class RandomModel(Model):
         num_obstacle_cells = int(num_total_cells * (obstacles_cells_percent / 100))        
 
         # Creates the border of the grid
-        border = [(x,y) for y in range(height) for x in range(width) if y in [0, height-1] or x in [0, width - 1]]
+        # border = [(x,y) for y in range(height) for x in range(width) if y in [0, height-1] or x in [0, width - 1]]
 
-        # Add obstacles to the grid border
-        for pos in border:
-            obs = ObstacleAgent(pos, self)
-            self.grid.place_agent(obs, pos)
+        # # Add obstacles to the grid border
+        # for pos in border:
+        #     obs = ObstacleAgent(pos, self)
+        #     self.grid.place_agent(obs, pos)
             
         # Add roomba agents to the grid in the position 1,1 
-        roomba = RoombaAgent(0, self, (1,1))
-        self.grid.place_agent(roomba, (1,1))
-        self.schedule.add(roomba)
+        # roomba = RoombaAgent(0, self, (1,1))
+        # self.grid.place_agent(roomba, (1,1))
+        # self.schedule.add(roomba)
         
-        # Add Charging station to the grid in the position 1,1
-        station = ChargingStationAgent(1, self)
-        self.schedule.add(station)
-        self.grid.place_agent(station, (1,1))
+        # # Add Charging station to the grid in the position 1,1
+        # station = ChargingStationAgent(1, self)
+        # self.schedule.add(station)
+        # self.grid.place_agent(station, (1,1))
+        # Add the Charging station agent to the random empty grid cell selected for the roomba agents
         
+
         # Function to generate random positions
         pos_gen = lambda w, h: (self.random.randrange(w), self.random.randrange(h))
-        
-        
+        if N == 1:
+            # Si solo hay un agente, colocarlo en la posición (1,1)
+            station_id = 2
+            roomba_id = 3
+            station = ChargingStationAgent(station_id, self)
+            roomba = RoombaAgent(roomba_id, self, (1,1))
+
+            # Agregar estación y Roomba al modelo
+            self.schedule.add(station)
+            self.grid.place_agent(station, (1,1))
+            self.schedule.add(roomba)
+            self.grid.place_agent(roomba, (1,1))
+        else:
+            for i in range(N):
+                # IDs separados para estaciones y Roombas
+                station_id = i * 2 + 2
+                roomba_id = i * 2 + 3
+                charging_station_pos = pos = pos_gen(self.grid.width-1, self.grid.height-1)
+
+                station = ChargingStationAgent(station_id, self)
+                roomba = RoombaAgent(roomba_id, self, charging_station_pos)
+
+                # Agregar estaciones y Roombas al modelo
+                self.schedule.add(station)
+                self.grid.place_agent(station, charging_station_pos)
+                self.schedule.add(roomba)
+                self.grid.place_agent(roomba, charging_station_pos)
+            
         
         # Add the obstacle agent to a random empty grid cell
         for i in range(num_obstacle_cells):
@@ -85,6 +113,14 @@ class RandomModel(Model):
         
         self.datacollector.collect(self)
 
+        # all_at_charging_stations = all(
+        #     isinstance(agent, RoombaAgent) and agent.pos == agent.charging_station_pos
+        #     for agent in self.schedule.agents
+        # )
+        # if all_at_charging_stations:
+        #     print("All agents at charging stations")
+        #     print("Simulation finished")
+        #     self.running = False
         self.max_time_seconds = max_time_seconds
         self.max_steps = max_steps
         self.start_time = time.time()
@@ -92,15 +128,6 @@ class RandomModel(Model):
     def step(self):
         current_time = time.time()
         elapsed_time = current_time - self.start_time
-        # current_steps = RoombaAgent.steps_taken
-        # print(f"current_steps: {current_steps}\n")
-        
-        # if self.max_steps >= current_steps:
-        #     self.schedule.step()
-        #     self.datacollector.collect(self)
-        # else:
-        #     self.running = False
-        #     print("Max steps reached")
         
         if elapsed_time < self.max_time_seconds:
             '''Advance the model by one step.'''
